@@ -1,12 +1,23 @@
-/*!
- * forscore-archive.js — Browser library for reading forScore .4sb (V03) backup
- * archives. See 4sb-format.md for the on-disk spec.
- *
- * Exposes window.FourSBArchive in browser globals.
- *
- * Requirements: a modern browser with DecompressionStream('gzip').
- * To bake annotations into PDFs, also load pdf-lib and pass it into extractPDF.
- */
+
+/*
+ForFreedom - A Forscore Utility for managing and extracting music libraries from Forscore
+Copyright (C) 2026 Walter Brobson
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
+
 (function (global) {
   "use strict";
 
