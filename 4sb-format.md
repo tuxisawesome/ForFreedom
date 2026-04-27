@@ -119,6 +119,8 @@ Any trailing bytes indicate corruption.
 
 ---
 
+{% raw %}
+
 ## 4. Path placeholder tokens
 
 Record names use two tokens that the importer rewrites to absolute paths
@@ -413,3 +415,5 @@ The following were observed but not exhaustively decoded:
   version, or the App Review prompt version (the `AR` prefix is ambiguous).
 * Whether older `<--4SBV01-->` / `<--4SBV02-->` archives use the same 32-byte
   ASCII length framing, or a different layout.
+
+{% endraw %}
