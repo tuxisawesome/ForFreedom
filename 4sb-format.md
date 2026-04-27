@@ -1,8 +1,6 @@
 # forScore `.4sb` Backup Archive Format (Version 03)
 
-This document describes the on-disk format of a forScore archive (`.4sb`) file,
-reverse-engineered from `Archive 2026-04-25 14-20-24.4sb` (1,169,431,595 bytes,
-90 records). It targets format version `03` (current as of forScore 2026).
+[Click here to go back home](home)
 
 A `.4sb` is a flat, self-describing concatenation of length-prefixed records.
 There is no central index, no chunk table, no checksum, and no per-record

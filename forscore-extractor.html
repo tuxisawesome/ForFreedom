@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>forScore Archive Extractor</title>
+<style>
+  :root {
+    --fg: #1a1a1a;
+    --muted: #6b6b6b;
+    --bg: #ffffff;
+    --panel: #f6f7f9;
+    --border: #e3e5e8;
+    --accent: #2c5fdb;
+    --accent-hover: #1f4ec0;
+    --danger: #c0392b;
+    --row-hover: #f0f3f8;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --fg: #e8e8e8;
+      --muted: #9a9a9a;
+      --bg: #1a1b1e;
+      --panel: #232428;
+      --border: #36373c;
+      --accent: #4d82ff;
+      --accent-hover: #6a96ff;
+      --row-hover: #2a2c31;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: var(--fg);
+    background: var(--bg);
+    line-height: 1.5;
+  }
+  main {
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 32px 24px 64px;
+  }
+  h1 {
+    margin: 0 0 8px;
+    font-size: 28px;
+    font-weight: 600;
+  }
+  .lede {
+    color: var(--muted);
+    margin: 0 0 24px;
+    font-size: 14px;
+  }
+  code {
+    background: var(--panel);
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-size: 0.92em;
+  }
+
+  #dropzone {
+    display: block;
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    padding: 32px;
+    text-align: center;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    margin-bottom: 20px;
+  }
+  #dropzone:hover, #dropzone.dragover {
+    border-color: var(--accent);
+    background: var(--panel);
+  }
+  #dropzone p { margin: 4px 0; }
+  #dropzone .primary-text { font-size: 16px; font-weight: 500; }
+  #dropzone .file-info { color: var(--muted); font-size: 13px; }
+  #dropzone input { display: none; }
+
+  #progress {
+    margin: 12px 0 20px;
+  }
+  #progress .bar {
+    height: 8px;
+    background: var(--panel);
+    border-radius: 4px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  #progress .fill {
+    height: 100%;
+    background: var(--accent);
+    width: 0%;
+    transition: width 0.15s ease;
+  }
+  #progress .text {
+    margin: 8px 0 0;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  #progress.error .fill { background: var(--danger); }
+
+  .toolbar {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    padding: 12px 14px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 12px;
+  }
+  .toolbar .spacer { flex: 1; }
+  .toolbar label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  button {
+    font: inherit;
+    padding: 7px 14px;
+    border-radius: 7px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--fg);
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  button:hover:not(:disabled) {
+    background: var(--row-hover);
+  }
+  button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  button.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+    font-weight: 500;
+  }
+  button.primary:hover:not(:disabled) {
+    background: var(--accent-hover);
+    border-color: var(--accent-hover);
+  }
+
+  #stats {
+    color: var(--muted);
+    font-size: 13px;
+    padding: 0 4px 8px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  th, td {
+    text-align: left;
+    padding: 10px 12px;
+    font-size: 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  th {
+    background: var(--panel);
+    font-weight: 500;
+    color: var(--muted);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: var(--row-hover); }
+  td.col-check { width: 40px; text-align: center; }
+  td.col-size { width: 130px; color: var(--muted); white-space: nowrap; }
+  td.col-pages { width: 160px; color: var(--muted); white-space: nowrap; }
+  td.col-name { word-break: break-word; }
+  .pill {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--muted);
+    margin-left: 4px;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 32px;
+    color: var(--muted);
+  }
+
+  footer {
+    margin-top: 32px;
+    color: var(--muted);
+    font-size: 12px;
+    text-align: center;
+  }
+  footer a { color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <h1>forScore Archive Extractor</h1>
+  <p class="lede">
+    Open a forScore <code>.4sb</code> backup, pick which scores to export.
+    Annotation overlays can be flattened into the PDF pages — everything runs
+    locally in your browser. Back <a href="home" target="_blank" rel="noopener">home</a>.
+  </p>
+
+  <label id="dropzone" for="filepicker">
+    <input type="file" id="filepicker" accept=".4sb">
+    <p class="primary-text">Drop a <code>.4sb</code> file here, or click to choose</p>
+    <p class="file-info" id="fileinfo">No file loaded.</p>
+  </label>
+
+  <div id="progress" hidden>
+    <div class="bar"><div class="fill"></div></div>
+    <p class="text" id="progress-text"></p>
+  </div>
+
+  <section id="library" hidden>
+    <div class="toolbar">
+      <button id="select-all" type="button">Select all</button>
+      <button id="select-none" type="button">Select none</button>
+      <label>
+        <input type="checkbox" id="include-annos" checked>
+        Bake annotations into PDFs
+      </label>
+      <span class="spacer"></span>
+      <span id="stats"></span>
+      <button id="download" class="primary" type="button">Download selected</button>
+    </div>
+
+    <table id="pdf-table">
+      <thead>
+        <tr>
+          <th class="col-check"></th>
+          <th class="col-name">Score</th>
+          <th class="col-size">Compressed size</th>
+          <th class="col-pages">Annotated pages</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <footer>
+    Vector annotations stored as <code>.4se</code> are not flattened — only the
+    rasterized <code>.png</code> overlays forScore writes alongside them are
+    embedded. PDFs without annotations are extracted byte-for-byte.
+  </footer>
+</main>
+
+<!-- pdf-lib (UMD) — for embedding PNG annotation overlays into PDF pages -->
+<script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+<!-- fflate (UMD) — for zipping multi-file extracts -->
+<script src="https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js"></script>
+<!-- The .4sb reader library -->
+<script src="forscore-archive.js"></script>
+
+<script>
+(function () {
+  "use strict";
+
+  const filePicker = document.getElementById("filepicker");
+  const dropzone = document.getElementById("dropzone");
+  const fileinfo = document.getElementById("fileinfo");
+  const progress = document.getElementById("progress");
+  const progressFill = progress.querySelector(".fill");
+  const progressText = document.getElementById("progress-text");
+  const library = document.getElementById("library");
+  const stats = document.getElementById("stats");
+  const tbody = document.querySelector("#pdf-table tbody");
+  const selectAll = document.getElementById("select-all");
+  const selectNone = document.getElementById("select-none");
+  const includeAnnos = document.getElementById("include-annos");
+  const downloadBtn = document.getElementById("download");
+
+  let archive = null;
+  let busy = false;
+
+  function fmtBytes(n) {
+    if (n < 1024) return n + " B";
+    const u = ["KB", "MB", "GB", "TB"];
+    let i = -1;
+    do { n /= 1024; i++; } while (n >= 1024 && i < u.length - 1);
+    return n.toFixed(n >= 100 ? 0 : n >= 10 ? 1 : 2) + " " + u[i];
+  }
+
+  function escapeHtml(s) {
+    return s.replace(/[&<>"']/g, (c) => (
+      { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[c]
+    ));
+  }
+
+  function setProgress(pct, text, isError) {
+    if (pct === null) {
+      progress.hidden = true;
+      return;
+    }
+    progress.hidden = false;
+    progress.classList.toggle("error", !!isError);
+    progressFill.style.width = Math.max(0, Math.min(100, Math.round(pct * 100))) + "%";
+    progressText.textContent = text || "";
+  }
+
+  function setBusy(b) {
+    busy = b;
+    selectAll.disabled = b;
+    selectNone.disabled = b;
+    downloadBtn.disabled = b;
+    includeAnnos.disabled = b;
+    filePicker.disabled = b;
+  }
+
+  // ---- File picking & drag/drop ------------------------------------------
+
+  filePicker.addEventListener("change", (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (file) loadArchive(file);
+  });
+
+  dropzone.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    dropzone.classList.add("dragover");
+  });
+  dropzone.addEventListener("dragleave", () => {
+    dropzone.classList.remove("dragover");
+  });
+  dropzone.addEventListener("drop", (e) => {
+    e.preventDefault();
+    dropzone.classList.remove("dragover");
+    const file = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (file) loadArchive(file);
+  });
+
+  // ---- Load archive ------------------------------------------------------
+
+  async function loadArchive(file) {
+    if (busy) return;
+    library.hidden = true;
+    tbody.innerHTML = "";
+    archive = null;
+    fileinfo.textContent = `${file.name} — ${fmtBytes(file.size)}`;
+    setBusy(true);
+    setProgress(0, "Indexing archive…");
+    try {
+      archive = await FourSBArchive.open(file, {
+        onProgress: (p) => setProgress(p, `Indexing… ${(p * 100).toFixed(1)}%`),
+      });
+    } catch (err) {
+      console.error(err);
+      setProgress(1, "Failed: " + err.message, true);
+      setBusy(false);
+      return;
+    }
+    setProgress(null);
+    setBusy(false);
+    renderLibrary();
+  }
+
+  // ---- Render score list -------------------------------------------------
+
+  function renderLibrary() {
+    const summary = archive.summary();
+    stats.textContent =
+      `${summary.pdfCount} score${summary.pdfCount === 1 ? "" : "s"}` +
+      ` • ${summary.annotationPngCount} annotated page${summary.annotationPngCount === 1 ? "" : "s"}` +
+      (summary.annotation4seCount ? ` • ${summary.annotation4seCount} vector annotation${summary.annotation4seCount === 1 ? "" : "s"}` : "");
+
+    tbody.innerHTML = "";
+    const pdfs = archive.pdfRecords();
+    if (pdfs.length === 0) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td colspan="4" class="empty-state">No PDFs found in this archive.</td>`;
+      tbody.appendChild(tr);
+    } else {
+      for (const rec of pdfs) {
+        const filename = archive.pdfFilename(rec);
+        const pngs = archive.annotationRecordsFor(filename, { ext: "png" });
+        const ses  = archive.annotationRecordsFor(filename, { ext: "4se" });
+        const pagesCell = pngs.length === 0
+          ? "—"
+          : `${pngs.length} page${pngs.length === 1 ? "" : "s"}` +
+            (ses.length ? `<span class="pill">+${ses.length} vector</span>` : "");
+        const tr = document.createElement("tr");
+        tr.innerHTML =
+          `<td class="col-check"><input type="checkbox" class="row-select" checked></td>` +
+          `<td class="col-name">${escapeHtml(filename)}</td>` +
+          `<td class="col-size">${fmtBytes(rec.dataLength)}</td>` +
+          `<td class="col-pages">${pagesCell}</td>`;
+        tr._record = rec;
+        tbody.appendChild(tr);
+      }
+    }
+    library.hidden = false;
+  }
+
+  selectAll.addEventListener("click", () => {
+    document.querySelectorAll(".row-select").forEach((cb) => (cb.checked = true));
+  });
+  selectNone.addEventListener("click", () => {
+    document.querySelectorAll(".row-select").forEach((cb) => (cb.checked = false));
+  });
+
+  // ---- Download ----------------------------------------------------------
+
+  downloadBtn.addEventListener("click", async () => {
+    if (busy || !archive) return;
+    const rows = [...document.querySelectorAll("#pdf-table tbody tr")]
+      .filter((tr) => tr._record && tr.querySelector(".row-select")?.checked);
+    if (rows.length === 0) {
+      alert("Select at least one score.");
+      return;
+    }
+    const withAnnos = includeAnnos.checked;
+
+    setBusy(true);
+    const outputs = [];
+    const failures = [];
+
+    for (let i = 0; i < rows.length; i++) {
+      const rec = rows[i]._record;
+      const filename = archive.pdfFilename(rec);
+      const overall = i / rows.length;
+      setProgress(overall, `Extracting "${filename}" (${i + 1} of ${rows.length})…`);
+      try {
+        const bytes = await archive.extractPDF(rec, {
+          withAnnotations: withAnnos,
+          PDFLib: window.PDFLib,
+          onProgress: (phase, cur, tot) => {
+            const inner = tot ? cur / tot : 0;
+            const blended = (i + (withAnnos ? inner * 0.9 : 0)) / rows.length;
+            setProgress(
+              blended,
+              `Extracting "${filename}" — embedding annotation ${cur} of ${tot}…`
+            );
+          },
+        });
+        outputs.push({ name: filename, bytes });
+      } catch (err) {
+        console.error("extractPDF failed for", filename, err);
+        failures.push({ filename, message: err.message });
+      }
+    }
+
+    if (outputs.length === 0) {
+      setProgress(1, "All extractions failed: " + failures.map((f) => f.message).join("; "), true);
+      setBusy(false);
+      return;
+    }
+
+    setProgress(0.95, outputs.length === 1
+      ? `Saving "${outputs[0].name}"…`
+      : `Packaging ${outputs.length} files into a zip…`);
+
+    try {
+      if (outputs.length === 1) {
+        triggerDownload(outputs[0].bytes, outputs[0].name, "application/pdf");
+      } else {
+        const zipBytes = await zipFiles(outputs);
+        const stem = (archive.file.name || "archive").replace(/\.4sb$/i, "");
+        const suffix = withAnnos ? "-annotated" : "";
+        triggerDownload(zipBytes, `${stem}${suffix}.zip`, "application/zip");
+      }
+    } catch (err) {
+      console.error(err);
+      setProgress(1, "Download packaging failed: " + err.message, true);
+      setBusy(false);
+      return;
+    }
+
+    if (failures.length === 0) {
+      setProgress(1, `Done — ${outputs.length} file${outputs.length === 1 ? "" : "s"} downloaded.`);
+    } else {
+      setProgress(
+        1,
+        `Done — ${outputs.length} succeeded, ${failures.length} failed: ` +
+          failures.map((f) => `${f.filename} (${f.message})`).join("; "),
+        true
+      );
+    }
+    setBusy(false);
+  });
+
+  function zipFiles(outputs) {
+    return new Promise((resolve, reject) => {
+      if (typeof fflate === "undefined" || !fflate.zip) {
+        reject(new Error("fflate is not loaded."));
+        return;
+      }
+      const seen = new Map();
+      const map = {};
+      for (const o of outputs) {
+        // Avoid name collisions if any (shouldn't normally happen).
+        let name = o.name;
+        if (seen.has(name)) {
+          const dot = name.lastIndexOf(".");
+          const stem = dot > 0 ? name.slice(0, dot) : name;
+          const ext = dot > 0 ? name.slice(dot) : "";
+          let n = (seen.get(name) || 1) + 1;
+          while (map[`${stem} (${n})${ext}`]) n++;
+          name = `${stem} (${n})${ext}`;
+          seen.set(o.name, n);
+        } else {
+          seen.set(name, 1);
+        }
+        map[name] = o.bytes;
+      }
+      // level: 0 = "store" (no recompression). PDFs already compress poorly.
+      fflate.zip(map, { level: 0 }, (err, data) => {
+        if (err) reject(err);
+        else resolve(data);
+      });
+    });
+  }
+
+  function triggerDownload(bytes, filename, mime) {
+    const blob = new Blob([bytes], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  }
+})();
+</script>
+</body>
+</html>
