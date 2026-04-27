@@ -232,7 +232,7 @@ followed by `|` (U+007C) and an attribute name. Attributes observed:
 | `bpm`        | int     | Tempo in beats per minute.                                                   |
 | `bookmarks`  | array   | Array of bookmark dicts (see §5.1.3).                                        |
 | `composer`   | string  |                                                                              |
-| `key`        | int     | Key/scale code.                                                              |
+| `key`        | int     | Musical key, encoded as a 3-digit LAM integer (see §5.1.6).                  |
 | `keywords`   | string  | Comma-separated.                                                             |
 | `labels`     | string  | Comma-separated category labels (e.g. `"Piano Academy"`, `"Auditions"`).     |
 | `pitch`      | int     | Reference pitch / transposition.                                             |
@@ -258,7 +258,7 @@ Each entry inside a `bookmarks` array is a dict. Observed keys:
 | `Last Page`               | int     | 1-based last page (inclusive).                                     |
 | `Identifier`              | string  | UUID, uppercase, dashed.                                           |
 | `BPM`                     | string  | Tempo (note: `string` here, vs `int` at score level).              |
-| `Key`                     | int     | Key code.                                                          |
+| `Key`                     | int     | Musical key (LAM integer, see §5.1.6).                             |
 | `Keyword`                 | string  | Singular form of `keywords`.                                       |
 | `Label`                   | string  | Singular form of `labels`.                                         |
 | `Signature`               | string  | Time signature.                                                    |
@@ -282,6 +282,55 @@ entries observed in the sample reference SF Symbol identifiers such as
 `infinity.circle`, plus `.fill` variants and `play.square.stack[.fill]`.
 This is forScore's modern stamp library, where stamps reference system
 symbols rather than embedded PNGs.
+
+#### 5.1.6 Internal key encoding (LAM)
+
+The integer in `<filename>|key` and in a bookmark dict's `Key` field is **not**
+the [`keysf`/`keymi` pair](https://forscore.co/developers-pdf-metadata/) used by
+forScore's public PDF-keyword standard. It is forScore's internal
+**letter–accidental–mode** representation, a 3-digit decimal integer:
+
+```
+   <letter><accidental><mode>
+       │        │         │
+       │        │         └── 0 = major, 1 = minor
+       │        └──────────── 0 = ♭ (flat), 1 = ♮ (natural), 2 = ♯ (sharp)
+       └───────────────────── 1 = C, 2 = D, 3 = E, 4 = F, 5 = G, 6 = A, 7 = B
+```
+
+The integer is therefore `100·letter + 10·accidental + mode`. Examples,
+verified against the analyzed sample by matching coded values to the known
+musical key of named pieces:
+
+| Code | Decoded     | Sample evidence                                              |
+| ---- | ----------- | ------------------------------------------------------------ |
+| 110  | C major     | Mozart KV 279 / 309 / 330 (all C major)                      |
+| 111  | C minor     | Mozart Fantasy and Sonata K. 475/457                         |
+| 210  | D major     | Mozart KV 284 / 311 / 576                                    |
+| 300  | E♭ major    | Mozart KV 282; Bach Flute Sonata BWV 1031                    |
+| 310  | E major     | Beethoven Op. 14 No. 1; Liszt Paganini Étude No. 5           |
+| 311  | E minor     | Bach Flute Sonata BWV 1034                                   |
+| 410  | F major     | Mozart KV 280 / 332 / 533                                    |
+| 510  | G major     | Mozart KV 283; Bach WTC I, Prelude & Fugue No. 15            |
+| 610  | A major     | Mozart KV 331 ("Alla Turca"); Mozart Violin Concerto No. 5   |
+| 611  | A minor     | Mozart KV 310                                                |
+| 700  | B♭ major    | Mozart KV 281 / 333 / 570                                    |
+
+Notes on this encoding:
+
+* It is **not** isomorphic to `keysf`/`keymi`. Enharmonic spellings collapse
+  in `keysf` (G♯ minor `keysf:5,keymi:1` and A♭ minor `keysf:-7,keymi:1`
+  share no fields with each other) but are distinct under LAM (G♯ minor
+  = `621`, A♭ minor = `601`). LAM preserves the spelling forScore should
+  display.
+* The analyzed sample contains no codes with accidental = 2 (sharps), so the
+  full sharp half of the table (e.g. `120` C♯ maj, `121` C♯ min, `420` F♯
+  maj, `421` F♯ min, …) is inferred by symmetry rather than directly
+  observed.
+* Importing a PDF whose Keywords carry `keysf:N` / `keymi:N` presumably
+  resolves to a single LAM code via the conventional sharp-major spelling
+  (e.g. `keysf:5,keymi:1` → G♯ minor → `621`), but this conversion has not
+  been verified against the binary.
 
 ### 5.2 Score PDF records
 
@@ -407,13 +456,60 @@ plist = plistlib.loads(inner)             # NSKeyedArchiver graph
 
 The following were observed but not exhaustively decoded:
 
-* The exact code tables behind the integer `key` / `Key` fields (e.g. whether
-  `310` and `510` map to musical-key constants).
 * The full schema of `&SYS;penPresets` strings beyond the
   `H|S|B|A|X|width` / `Stamps|<n>` / `Shapes|<n>` shapes.
 * Whether `&SYS;ARCurrentVersion` is the file-format version, the app
   version, or the App Review prompt version (the `AR` prefix is ambiguous).
 * Whether older `<--4SBV01-->` / `<--4SBV02-->` archives use the same 32-byte
   ASCII length framing, or a different layout.
+* Whether the LAM key encoding (§5.1.6) ever uses accidental = 2 (sharps) in
+  practice; the analyzed sample only contains naturals and flats.
+
+---
+
+## 10. Embedded PDF metadata convention (public standard)
+
+Independently of the `.4sb` framing, forScore reads (and recommends that
+publishers write) a small set of metadata into a PDF's standard document
+information dictionary. This is the **public** convention — distinct from
+the internal manifest plist representation described in §5.1 — and is
+documented at [forscore.co/developers-pdf-metadata/](https://forscore.co/developers-pdf-metadata/).
+
+### 10.1 Standard PDF fields → forScore fields
+
+| PDF Info field | forScore mapping                                                  |
+| -------------- | ------------------------------------------------------------------ |
+| `Title`        | Title (single value)                                               |
+| `Author`       | Composer(s), comma-separated                                       |
+| `Subject`      | Genre(s), comma-separated                                          |
+| `Keywords`     | Tags, comma-separated, **excluding** the specialty keywords below  |
+
+### 10.2 Specialty Keywords
+
+Specially-formatted entries inside `Keywords` carry structured fields. Each
+specialty keyword is a single token of the form `name:N`:
+
+| Keyword       | forScore field         | Range                                  |
+| ------------- | ---------------------- | -------------------------------------- |
+| `rating:N`    | Rating                 | integer 0–5                            |
+| `difficulty:N`| Difficulty             | integer 0–3                            |
+| `duration:N`  | Duration (seconds)     | non-negative integer                   |
+| `keysf:N`     | Key signature accidentals | integer −7 … +7 (negative = flats)  |
+| `keymi:N`     | Mode                   | 0 = major, 1 = minor                   |
+
+The two key fields are paired: a publisher writes both `keysf:N` and
+`keymi:N` to fully specify a key. The `keysf`/`keymi` pair is what flows
+across PDFs; the manifest's LAM integer (§5.1.6) is what flows across
+`.4sb` archives.
+
+> "Previous versions of forScore used `forScore-difficulty:N` and
+> `forScore-rating:N` but these specific keys have been retired in favor of
+> the more generic replacements with forScore 10.4." — *forScore developer
+> docs*
+
+A reader merging a `.4sb` import with an existing PDF should prefer the
+`.4sb` manifest's metadata over re-deriving from PDF Keywords; forScore
+itself only fetches Keywords when a field is empty (the "Fetch…" action in
+the metadata editor).
 
 {% endraw %}
